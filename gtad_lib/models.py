@@ -219,7 +219,7 @@ class GTAD(nn.Module):
 
     def forward(self, snip_feature):
         del self.idx_list[:]  # clean the idx list
-        base_feature = self.backbone1(snip_feature).contiguous()  # (bs, 2048, 256) -> (bs, 256, 256)
+        base_feature = self.backbone1(snip_feature).contiguous()  # (bs, 2048, 256) -> (bs, 256, 256) # want to check the snip_feature changes or not for each video sequence
         gcnext_feature = self.backbone2(base_feature)  #
 
         regu_s = self.regu_s(base_feature).squeeze(1)  # start

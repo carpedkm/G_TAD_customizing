@@ -1,0 +1,41 @@
+2021.10.05-12.41.37
+use 2 gpus to train!
+./data/thumos_annotations/saved.2048.train.nf256.sf5.num200.train.pkl
+Got saved data.
+Size of data:  1389
+./data/thumos_annotations/saved.2048.validation.nf256.sf5.num213.train.pkl
+Got saved data.
+Size of data:  1626
+[Epoch 000]	Loss 6.13 = 4.86 + 1.28 (train)
+[Epoch 000]	Loss 5.64 = 4.34 + 1.30 (validation)
+[Epoch 001]	Loss 4.77 = 3.58 + 1.19 (train)
+[Epoch 001]	Loss 5.44 = 4.18 + 1.26 (validation)
+[Epoch 002]	Loss 4.17 = 3.03 + 1.14 (train)
+[Epoch 002]	Loss 5.24 = 4.01 + 1.23 (validation)
+[Epoch 003]	Loss 3.55 = 2.47 + 1.08 (train)
+[Epoch 003]	Loss 5.87 = 4.66 + 1.21 (validation)
+[Epoch 004]	Loss 3.17 = 2.12 + 1.05 (train)
+[Epoch 004]	Loss 6.62 = 5.41 + 1.21 (validation)
+[Epoch 005]	Loss 2.69 = 1.66 + 1.03 (train)
+[Epoch 005]	Loss 7.01 = 5.82 + 1.19 (validation)
+[Epoch 006]	Loss 2.59 = 1.57 + 1.02 (train)
+[Epoch 006]	Loss 7.40 = 6.21 + 1.19 (validation)
+[Epoch 007]	Loss 2.53 = 1.52 + 1.01 (train)
+[Epoch 007]	Loss 7.35 = 6.16 + 1.19 (validation)
+[Epoch 008]	Loss 2.47 = 1.46 + 1.01 (train)
+[Epoch 008]	Loss 7.66 = 6.47 + 1.19 (validation)
+[Epoch 009]	Loss 2.42 = 1.42 + 1.00 (train)
+[Epoch 009]	Loss 8.62 = 7.43 + 1.19 (validation)
+./data/thumos_annotations/saved.2048.validation.nf256.sf5.num213.inference.pkl
+Got saved data.
+Size of data:  1925
+Inference start
+Inference finished
+Detection post processing start
+Detection Post processing finished
+mAP at tIoU 0.3 is 0.5815573614727192
+mAP at tIoU 0.4 is 0.5189609611095594
+mAP at tIoU 0.5 is 0.43595326507578347
+mAP at tIoU 0.6 is 0.3298670384412085
+mAP at tIoU 0.7 is 0.23103582036282316
+2021.10.05-13.35.48

@@ -3,6 +3,9 @@ import math
 import numpy as np
 import pandas as pd
 import torch.nn.parallel
+import os
+
+# os.environ['CUDA_VISIBLE_DEVICES']='6,7'
 
 from gtad_lib import opts
 from gtad_lib.models import GTAD
@@ -16,6 +19,7 @@ if __name__ == '__main__':
 
     model = GTAD(opt)
     model = torch.nn.DataParallel(model, device_ids=[0]).cuda()
+    # model = torch.nn.DataParallel(model).cuda()
     checkpoint = torch.load(opt["output"] + "/GTAD_best.pth.tar")
     model.load_state_dict(checkpoint['state_dict'])
     model.eval()

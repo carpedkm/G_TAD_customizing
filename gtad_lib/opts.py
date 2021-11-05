@@ -1,5 +1,8 @@
 import argparse
+import os
 
+# Designating GPUs
+# os.environ["CUDA_VISIBLE_DEVICE"] = "4, 5, 6, 7"
 
 def parse_opt():
     parser = argparse.ArgumentParser()
@@ -19,7 +22,7 @@ def parse_opt():
     parser.add_argument(
         '--batch_size',
         type=int,
-        default=8)
+        default=4)
     parser.add_argument(
         '--step_size',
         type=int,

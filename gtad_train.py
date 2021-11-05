@@ -106,7 +106,8 @@ if __name__ == '__main__':
 
     model = GTAD(opt)
 
-    model = torch.nn.DataParallel(model, device_ids=list(range(opt['n_gpu']))).cuda()
+    # model = torch.nn.DataParallel(model, device_ids=list(range(opt['n_gpu']))).cuda() # FIXED for gpu setting
+    model = torch.nn.DataParallel(model).cuda() 
     print('use {} gpus to train!'.format(opt['n_gpu']))
 
     optimizer = optim.Adam(model.parameters(), lr=opt["training_lr"],

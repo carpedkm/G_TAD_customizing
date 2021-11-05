@@ -72,7 +72,7 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# pyenv
+# pyenvgit 
 .python-version
 
 # celery beat schedule file
@@ -105,4 +105,11 @@ venv.bak/
 
 data/thumos_annotations/saved*
 data/thumos_feature/TSN*
+data/temp/
 output/*
+
+# files
+flow_test.h5
+flow_val.h5
+rgb_test.h5
+rgb_val.h5

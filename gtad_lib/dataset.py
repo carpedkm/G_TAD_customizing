@@ -65,7 +65,7 @@ class VideoDataSet(data.Dataset):  # thumos
         # self._getDatasetDict()
         self._get_match_map()
 
-    def _getDatasetDict(self):
+    def _getDatasetDict(self): # so, it's not used then
         anno_df = pd.read_csv(self.video_info_path)
         anno_database = load_json(self.video_anno_path)
         self.video_dict = {}
