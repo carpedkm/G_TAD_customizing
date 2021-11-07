@@ -187,10 +187,10 @@ class VideoDataSet(data.Dataset):  # thumos
         list_videos = []
         list_indices = []
 
-        num_videoframes = self.num_videoframes
-        skip_videoframes = self.skip_videoframes
-        start_snippet = int((skip_videoframes + 1) / 2)
-        stride = int(num_videoframes / 2)
+        num_videoframes = self.num_videoframes # the window size is 256
+        skip_videoframes = self.skip_videoframes # so it's 5. -> is it the sigma? for the averaging?
+        start_snippet = int((skip_videoframes + 1) / 2) 
+        stride = int(num_videoframes / 2) # so the stride is 128 for the thumos14
 
         self.durations = {}
 
@@ -224,8 +224,8 @@ class VideoDataSet(data.Dataset):  # thumos
             # df_snippet = [start_snippet + skip_videoframes * i for i in range(num_snippet)] 
             df_snippet = [skip_videoframes * i for i in range(num_snippet)] # skip video frames how does it work?
             num_windows = int((num_snippet + stride - num_videoframes) / stride) # num_videoframes = 256 (window size), stride = 128 (half of window size)
-            windows_start = [i * stride for i in range(num_windows)]
-            if num_snippet < num_videoframes:
+            windows_start = [i * stride for i in range(num_windows)] # windows_start : the start frame x -> the row index, you should think
+            if num_snippet < num_videoframes: # so if the number of snippet (?) is smaller than the window size? -> why do they call this num_snippet?
                 windows_start = [0]
                 # Add on a bunch of zero data if there aren't enough windows.
                 tmp_data = np.zeros((num_videoframes - num_snippet, self.feat_dim))
@@ -240,18 +240,18 @@ class VideoDataSet(data.Dataset):  # thumos
             for start in windows_start:
                 tmp_data = df_data[start:start + num_videoframes, :] # so this stores the data
 
-                tmp_snippets = np.array(df_snippet[start:start + num_videoframes]) # why this?
+                tmp_snippets = np.array(df_snippet[start:start + num_videoframes]) # why this? -> in order to use the window -> 256 frames // df_snippet contains : 0, 5, 10, ... , => meaning : retrieving the original frame index, not the downsampled one?
                 if self.mode == 'train':
                     tmp_anchor_xmins = tmp_snippets - skip_videoframes / 2.
                     tmp_anchor_xmaxs = tmp_snippets + skip_videoframes / 2.
                     tmp_gt_bbox = []
                     tmp_ioa_list = []
-                    for idx in range(len(gt_xmins)):
+                    for idx in range(len(gt_xmins)): # gt_xmins , gt_xmaxs : use original frame (not the 5 divided ones): in order to compare, tmp_anchor -> they should be consisted of original frames also. 
                         tmp_ioa = ioa_with_anchors(gt_xmins[idx], gt_xmaxs[idx],
                                                    tmp_anchor_xmins[0],
                                                    tmp_anchor_xmaxs[-1])
-                        tmp_ioa_list.append(tmp_ioa)
-                        if tmp_ioa > 0:
+                        tmp_ioa_list.append(tmp_ioa) # check if the window contains the given ground truth ts and te
+                        if tmp_ioa > 0: # if there's contained ones -> append all of them to tmp_gt_bbox
                             tmp_gt_bbox.append([gt_xmins[idx], gt_xmaxs[idx]])
 
                     if len(tmp_gt_bbox) > 0 and max(tmp_ioa_list) > 0.9:
