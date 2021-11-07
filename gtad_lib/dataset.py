@@ -83,10 +83,10 @@ class VideoDataSet(data.Dataset):  # thumos
 
 
     def __getitem__(self, index):
-        video_data = self._get_video_data(self.data, index) # get one from 2793
-        video_data = torch.tensor(video_data.transpose())
+        video_data = self._get_video_data(self.data, index) # get one from 2793 // get data stored from _get_data one by one through index
+        video_data = torch.tensor(video_data.transpose()) # by transposing, make it feature_dim by length (window size)
         if self.mode == "train":
-            match_score_start, match_score_end, confidence_score = self._get_train_label(index)
+            match_score_start, match_score_end, confidence_score = self._get_train_label(index) # get the label data : gt bbox for that matching windows, anchor_xmins, anchor_xmaxs : (corresponding anchors that's multiplied by 5 to compare with gt in frames)
             return video_data, confidence_score, match_score_start, match_score_end
         else:
             return index, video_data
@@ -117,7 +117,7 @@ class VideoDataSet(data.Dataset):  # thumos
         offset = int(min(anchor_xmin))
         for j in range(len(gt_bbox)):
             # tmp_info = video_labels[j]
-            tmp_start = max(min(1, (gt_bbox[j][0]-offset)*self.temporal_gap/self.skip_videoframes), 0)
+            tmp_start = max(min(1, (gt_bbox[j][0]-offset)*self.temporal_gap/self.skip_videoframes), 0) # to use it with the given feature data, it's kind of shifting and scaling
             tmp_end =   max(min(1, (gt_bbox[j][1]-offset)*self.temporal_gap/self.skip_videoframes), 0)
             # gt_bbox.append([tmp_start, tmp_end])
             tmp_gt_iou_map = iou_with_anchors(
@@ -252,20 +252,20 @@ class VideoDataSet(data.Dataset):  # thumos
                                                    tmp_anchor_xmaxs[-1])
                         tmp_ioa_list.append(tmp_ioa) # check if the window contains the given ground truth ts and te
                         if tmp_ioa > 0: # if there's contained ones -> append all of them to tmp_gt_bbox
-                            tmp_gt_bbox.append([gt_xmins[idx], gt_xmaxs[idx]])
+                            tmp_gt_bbox.append([gt_xmins[idx], gt_xmaxs[idx]]) # meaning, (I think), that we'll use this gt set?
 
-                    if len(tmp_gt_bbox) > 0 and max(tmp_ioa_list) > 0.9:
-                        list_gt_bbox.append(tmp_gt_bbox)
-                        list_anchor_xmins.append(tmp_anchor_xmins)
-                        list_anchor_xmaxs.append(tmp_anchor_xmaxs)
-                        list_videos.append(video_name)
-                        list_indices.append(tmp_snippets)
+                    if len(tmp_gt_bbox) > 0 and max(tmp_ioa_list) > 0.9: # in that video seq, if there's case that includes the gt for the window, and if there exists ioa larger than 0.9
+                        list_gt_bbox.append(tmp_gt_bbox) # add that tmp_gt_bbox to list_gt_bbox (adding that gt set that includes ioa larger than 0.9 to list_gt_bbox) 
+                        list_anchor_xmins.append(tmp_anchor_xmins) # in that case, add the tmp_anchor_xmins
+                        list_anchor_xmaxs.append(tmp_anchor_xmaxs) # in that case, add the tmp_anchor_xmaxs
+                        list_videos.append(video_name) # in that case, add the video_name (like video_validation_0000051)
+                        list_indices.append(tmp_snippets) # tmp snippet inside that window (256), that's re-stored to the original frame index, multiplied by 5
                         if self.feature_dirs:
                             list_data.append(np.array(tmp_data).astype(np.float32))
                 elif "infer" in self.mode:
                     list_videos.append(video_name)
                     list_indices.append(tmp_snippets)
-                    list_data.append(np.array(tmp_data).astype(np.float32))
+                    list_data.append(np.array(tmp_data).astype(np.float32)) # tmp_data has the video feature that corresponds to the windows, list_data contains 
 
         print("List of videos: ", len(set(list_videos)), flush=True)
         self.data = {
@@ -279,7 +279,7 @@ class VideoDataSet(data.Dataset):  # thumos
                 'anchor_xmaxs': list_anchor_xmaxs,
             })
         if self.feature_dirs:
-            self.data['video_data'] = list_data  # so this stores the snippet stuffs
+            self.data['video_data'] = list_data  # list data stores 256 (window size) by 2048 features -> a lot of them
         print('Size of data: ', len(self.data['video_names']), flush=True)
         with open(saved_data_path, 'wb') as f:
             pickle.dump([self.data, self.durations], f)

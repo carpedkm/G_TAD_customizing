@@ -38,7 +38,7 @@ class AverageMeter(object):
 def train(data_loader, model, optimizer, epoch, bm_mask):
     model.train()
     total_am, subgraph_am, node_am = AverageMeter(), AverageMeter(), AverageMeter()
-    for n_iter, (input_data, label_confidence, label_start, label_end) in enumerate(data_loader):
+    for n_iter, (input_data, label_confidence, label_start, label_end) in enumerate(data_loader): # in dataset, label_start/end is named as match_score_start and match_score_end (It's percentage), but not sure yet
         # forward pass
         confidence_map, start, end = model(input_data.cuda()) 
         # loss
