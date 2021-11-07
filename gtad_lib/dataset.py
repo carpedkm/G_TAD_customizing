@@ -53,7 +53,7 @@ class VideoDataSet(data.Dataset):  # thumos
 
         #### THUMOS
         self.skip_videoframes = opt['skip_videoframes']
-        self.num_videoframes = opt['temporal_scale']
+        self.num_videoframes = opt['temporal_scale'] # how does this work ?
         self.max_duration = opt['max_duration']
         self.min_duration = opt['min_duration']
         if self.feature_path[-3:]=='200':
@@ -201,10 +201,10 @@ class VideoDataSet(data.Dataset):  # thumos
 
         for num_video, video_name in enumerate(video_name_list):
             print('Getting video %d / %d' % (num_video, len(video_name_list)), flush=True)
-            anno_df_video = anno_df[anno_df.video == video_name]
+            anno_df_video = anno_df[anno_df.video == video_name] # for the each video sequence (same video) -> they are grouped as one set, in df
             if self.mode == 'train':
-                gt_xmins = anno_df_video.startFrame.values[:]
-                gt_xmaxs = anno_df_video.endFrame.values[:]
+                gt_xmins = anno_df_video.startFrame.values[:] # Get the start frame values from pandas df
+                gt_xmaxs = anno_df_video.endFrame.values[:] # Get the end frame values from pandas df
 
             if 'val' in video_name:
                 feature_h5s = [
@@ -216,14 +216,14 @@ class VideoDataSet(data.Dataset):  # thumos
                     self.flow_test[video_name][::self.skip_videoframes,...],
                     self.rgb_test[video_name][::self.skip_videoframes,...]
                 ]
-            num_snippet = min([h5.shape[0] for h5 in feature_h5s])
-            df_data = np.concatenate([h5[:num_snippet, :]
-                                      for h5 in feature_h5s],
-                                     axis=1)
+            num_snippet = min([h5.shape[0] for h5 in feature_h5s]) # so, 1018 is the num_snippet ? looked like it was shape[1] the snippet from paper
+            df_data = np.concatenate([h5[:num_snippet, :] # Yes, it's the number of snippets, and as we can see in the paper, 1018 * 5 is the original frame amounts
+                                      for h5 in feature_h5s], # It's because, the number is given with downsampled TSN encoded.
+                                     axis=1) # concatenate, for example, 1018 by 1024 two of them -> 1018 by 2048, so the feature dim is concatenated.
 
             # df_snippet = [start_snippet + skip_videoframes * i for i in range(num_snippet)] 
-            df_snippet = [skip_videoframes * i for i in range(num_snippet)] 
-            num_windows = int((num_snippet + stride - num_videoframes) / stride)
+            df_snippet = [skip_videoframes * i for i in range(num_snippet)] # skip video frames how does it work?
+            num_windows = int((num_snippet + stride - num_videoframes) / stride) # num_videoframes = 256 (window size), stride = 128 (half of window size)
             windows_start = [i * stride for i in range(num_windows)]
             if num_snippet < num_videoframes:
                 windows_start = [0]
@@ -238,9 +238,9 @@ class VideoDataSet(data.Dataset):  # thumos
                 windows_start.append(num_snippet - num_videoframes)
 
             for start in windows_start:
-                tmp_data = df_data[start:start + num_videoframes, :]
+                tmp_data = df_data[start:start + num_videoframes, :] # so this stores the data
 
-                tmp_snippets = np.array(df_snippet[start:start + num_videoframes])
+                tmp_snippets = np.array(df_snippet[start:start + num_videoframes]) # why this?
                 if self.mode == 'train':
                     tmp_anchor_xmins = tmp_snippets - skip_videoframes / 2.
                     tmp_anchor_xmaxs = tmp_snippets + skip_videoframes / 2.
@@ -279,7 +279,7 @@ class VideoDataSet(data.Dataset):  # thumos
                 'anchor_xmaxs': list_anchor_xmaxs,
             })
         if self.feature_dirs:
-            self.data['video_data'] = list_data
+            self.data['video_data'] = list_data  # so this stores the snippet stuffs
         print('Size of data: ', len(self.data['video_names']), flush=True)
         with open(saved_data_path, 'wb') as f:
             pickle.dump([self.data, self.durations], f)

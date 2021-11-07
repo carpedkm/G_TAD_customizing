@@ -40,7 +40,7 @@ def train(data_loader, model, optimizer, epoch, bm_mask):
     total_am, subgraph_am, node_am = AverageMeter(), AverageMeter(), AverageMeter()
     for n_iter, (input_data, label_confidence, label_start, label_end) in enumerate(data_loader):
         # forward pass
-        confidence_map, start, end = model(input_data.cuda())
+        confidence_map, start, end = model(input_data.cuda()) 
         # loss
         gt_iou_map = label_confidence.cuda() * bm_mask
         subgraph_loss = subgraph_loss_func(confidence_map, gt_iou_map, bm_mask)
