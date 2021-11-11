@@ -89,7 +89,7 @@ class VideoDataSet(data.Dataset):  # thumos
             match_score_start, match_score_end, confidence_score = self._get_train_label(index) # get the label data : gt bbox for that matching windows, anchor_xmins, anchor_xmaxs : (corresponding anchors that's multiplied by 5 to compare with gt in frames)
             return video_data, confidence_score, match_score_start, match_score_end
         else:
-            return index, video_data
+            return index, video_data # when inferencing -> just input the video_data (2048 by 256)
 
     def _get_match_map(self):
         match_map = []
