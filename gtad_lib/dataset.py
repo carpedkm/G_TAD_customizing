@@ -50,6 +50,8 @@ class VideoDataSet(data.Dataset):  # thumos
         # Assuming someone wont outsmart this by mutating the dict 😝.
         # Consider to use YACS and FB code structure in the future.
         self.cfg = opt
+        self.boundary_file = './temporal_info.json'
+        self._temporal_file_load()
 
         #### THUMOS
         self.skip_videoframes = opt['skip_videoframes']
@@ -106,7 +108,10 @@ class VideoDataSet(data.Dataset):  # thumos
         self.match_map = match_map  # duration is same in row, start is same in col
         self.anchor_xmin = [self.temporal_gap * (i-0.5) for i in range(self.temporal_scale)]
         self.anchor_xmax = [self.temporal_gap * (i+0.5) for i in range(1, self.temporal_scale + 1)]
-
+        
+    def _temporal_file_load(self):
+            self.temporal_set = load_json(self.boundary_file)
+        
     def _get_train_label(self, index):
         # change the measurement from second to percentage
         # gt_bbox = []
