@@ -110,10 +110,42 @@ class VideoDataSet(data.Dataset):  # thumos
         self.match_map = match_map  # duration is same in row, start is same in col
         self.anchor_xmin = [self.temporal_gap * (i-0.5) for i in range(self.temporal_scale)]
         self.anchor_xmax = [self.temporal_gap * (i+0.5) for i in range(1, self.temporal_scale + 1)]
-        
+    
+    # Methods customized
     def _temporal_file_load(self):
             self.temporal_set = load_json(self.boundary_file)
         
+    def _update_transition_sites(self, top_transition_sites, complementary_count):
+        for cnt, reg in enumerate(top_transition_sites):
+            if cnt == 0:
+                prev_reg = reg
+                continue
+            else:
+                diff = reg - prev_reg
+                if diff <= complementary_count * 4: # 만약 특정 구간에서 인터벌이 120(0, 120)인 상태에서 6개를 샘플링해야 하는 상황일 때, 120을 top_transition_sites에서 삭제하게 된다.
+                        list.remove(reg)
+                        break
+                else :
+                    prev_reg = reg
+        return top_transition_sites
+            
+    def _update_intervals(self, num_video_frames_, top_transition_sites_):
+        intervals_count_= len(top_transition_sites_) - 1
+        per_interval_count_ = math.floor(num_video_frames_ / intervals_count_)
+        per_interval_count_list_ = [per_interval_count_ for _ in range(intervals_count_)]
+        complementary_count_ = num_video_frames_ - (per_interval_count_ * intervals_count_)
+        return intervals_count_, per_interval_count_, complementary_count_, per_interval_count_list_
+    def _length_calculate(self, top_transition_list):
+        tmp = []
+        for cnt, i in enumerate(top_transition_list):
+            if cnt == 0:
+                end = i
+            else :
+                start = end
+                end = i
+                interval = end - start
+                tmp.append(interval)
+        return tmp
     def _get_train_label(self, index):
         # change the measurement from second to percentage
         # gt_bbox = []
@@ -235,35 +267,26 @@ class VideoDataSet(data.Dataset):  # thumos
             per_interval_count = math.floor(num_videoframes / intervals_count) # per interval, there should be sampled in this amount
             complementary_count = num_videoframes - (per_interval_count * intervals_count) # use this amount to add up the sampling count to the top "complementary_count" numbers
             
-            def update_transition_sites(top_transition_sites, complementary_count):
-                for cnt, reg in enumerate(top_transition_sites):
-                    if cnt == 0:
-                        prev_reg = reg
-                        continue
-                    else:
-                        diff = reg - prev_reg
-                        if diff <= complementary_count * 4: # 만약 특정 구간에서 인터벌이 120(0, 120)인 상태에서 6개를 샘플링해야 하는 상황일 때, 120을 top_transition_sites에서 삭제하게 된다.
-                                list.remove(reg)
-                                break
-                        else :
-                            prev_reg = reg
-                return top_transition_sites
-            
-            def update_intervals(num_video_frames_, top_transition_sites_):
-                intervals_count_= len(top_transition_sites_) - 1
-                per_interval_count_ = math.floor(num_video_frames_ / intervals_count_)
-                complementary_count_ = num_video_frames_ - (per_interval_count_ * intervals_count_)
-                return intervals_count_, per_interval_count_, complementary_count_
-             
             flag = 0
             while flag != 1:
                 old_top = top_transition_sites
-                top_transition_sites = update_transition_sites(top_transition_sites, complementary_count)
-                intervals_count, per_interval_count, complementary_count = update_intervals(num_videoframes, top_transition_sites)
+                top_transition_sites = self._update_transition_sites(top_transition_sites, complementary_count)
+                intervals_count, per_interval_count, complementary_count, per_interval_count_list = self._update_intervals(num_videoframes, top_transition_sites)
                 if old_top == top_transition_sites:
                     flag = 1
             
+            diff_in_transitions = self._length_calculate(top_transition_sites)
+            sorted_transitions = sorted(diff_in_transitions, reverse=True)
+            idx_list_transitions = []
             
+            for i in diff_in_transitions:
+                idx_list_transitions.append(sorted_transitions.index(i))
+            
+            for cnt, i in enumerate(idx_list_transitions):
+                if i < complementary_count:
+                    per_interval_count_list[cnt] += 1
+            
+                
             # Integrate and average the feature
             sampling_frames_list = []
             for cnt, i in enumerate(top_transition_sites):
@@ -274,11 +297,12 @@ class VideoDataSet(data.Dataset):  # thumos
                     end = i
                     int_length = end - start# interval length
                     k = 0
-                    sampling_rate = float(int_length) / float(per_interval_count)
+                    sampling_rate = float(int_length) / float(per_interval_count_list[cnt - 1])
                     while sampling_rate * k < int_length:
                         sampling_frames_list.append(math.floor(sampling_rate * k + start))
                         k += 1
-                
+            
+            
             num_snippet = min([h5.shape[0] for h5 in feature_h5s]) # so, 1018 is the num_snippet ? looked like it was shape[1] the snippet from paper
             
             df_data = np.concatenate([h5[:num_snippet, :] # Yes, it's the number of snippets, and as we can see in the paper, 1018 * 5 is the original frame amounts
