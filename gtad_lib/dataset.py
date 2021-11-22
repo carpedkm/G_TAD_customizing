@@ -52,7 +52,10 @@ class VideoDataSet(data.Dataset):  # thumos
         # Assuming someone wont outsmart this by mutating the dict 😝.
         # Consider to use YACS and FB code structure in the future.
         self.cfg = opt
-        self.boundary_file = './temporal_info.json'
+        if self.subset == 'train':
+            self.boundary_file = './temporal_info.json'
+        else :
+            self.boundary_file = './temporal_info_test.json'
         self._temporal_file_load()
 
         #### THUMOS
@@ -113,16 +116,17 @@ class VideoDataSet(data.Dataset):  # thumos
     
     # Methods customized
     def _temporal_file_load(self):
-            self.temporal_set = load_json(self.boundary_file)
+        self.temporal_set = load_json(self.boundary_file)
+
         
-    def _update_transition_sites(self, top_transition_sites, complementary_count):
+    def _update_transition_sites(self, top_transition_sites, per_interval_count_):
         for cnt, reg in enumerate(top_transition_sites):
             if cnt == 0:
                 prev_reg = reg
                 continue
             else:
                 diff = reg - prev_reg
-                if diff <= complementary_count * 4: # 만약 특정 구간에서 인터벌이 120(0, 120)인 상태에서 6개를 샘플링해야 하는 상황일 때, 120을 top_transition_sites에서 삭제하게 된다.
+                if diff <= per_interval_count_ * 4: # 만약 특정 구간에서 인터벌이 20(0, 20)인 상태에서 6개를 샘플링해야 하는 상황일 때, 20을 top_transition_sites에서 삭제하게 된다.
                         top_transition_sites.remove(reg)
                         break
                 else :
@@ -251,33 +255,35 @@ class VideoDataSet(data.Dataset):  # thumos
             if self.mode == 'train':
                 gt_xmins = anno_df_video.startFrame.values[:] # Get the start frame values from pandas df
                 gt_xmaxs = anno_df_video.endFrame.values[:] # Get the end frame values from pandas df
-            # FIX FROM HERE
-            # UPDATED CODE
+
+    # UPDATED CODE -------------------------------------------------------
             intervals_count = len(top_transition_sites) - 1
             per_interval_count = math.floor(num_videoframes / intervals_count) # per interval, there should be sampled in this amount
             complementary_count = num_videoframes - (per_interval_count * intervals_count) # use this amount to add up the sampling count to the top "complementary_count" numbers
             
             flag = 0
-            while flag != 1:
-                old_top = top_transition_sites
-                top_transition_sites = self._update_transition_sites(top_transition_sites, complementary_count)
-                intervals_count, per_interval_count, complementary_count, per_interval_count_list = self._update_intervals(num_videoframes, top_transition_sites)
-                if old_top == top_transition_sites:
-                    flag = 1
+            while flag != 1: # update the transition sites -> for ex) if there exists 6 interval count for the interval length 20, then you shouldn't pick it up, rather delete the transition -> update
+                old_top = top_transition_sites # 기존 transition site list
+                top_transition_sites = self._update_transition_sites(top_transition_sites, per_interval_count) # update the transition site (delete the non-necessary element)
+                intervals_count, per_interval_count, complementary_count, per_interval_count_list = self._update_intervals(num_videoframes, top_transition_sites) # recalculte the intervals count, per_interval_count, complementary_count
+                if old_top == top_transition_sites: # If there's no more changes
+                    flag = 1 # set the flag 1, and stop it
             
-            diff_in_transitions = self._length_calculate(top_transition_sites)
-            sorted_transitions = sorted(diff_in_transitions, reverse=True)
+            diff_in_transitions = self._length_calculate(top_transition_sites) # calculate the length of each intervals
+            sorted_transitions = sorted(diff_in_transitions, reverse=True) # sort it
             idx_list_transitions = []
             
             for i in diff_in_transitions:
-                idx_list_transitions.append(sorted_transitions.index(i))
+                idx_list_transitions.append(sorted_transitions.index(i)) # put the index inside
             
-            for cnt, i in enumerate(idx_list_transitions):
+            for cnt, i in enumerate(idx_list_transitions): # since it's not 256 yet, add the complementary to the k(comp count) largest interval values
                 if i < complementary_count:
                     per_interval_count_list[cnt] += 1
             
                 
-            # Integrate and average the feature
+        # Integrate and average the feature -----
+            # select the frames to sample -> use the transition sites 
+            # -> and pick it by using the updated per_interval_count_list
             sampling_frames_list = []
             for cnt, i in enumerate(top_transition_sites):
                 if cnt == 0:
@@ -291,8 +297,9 @@ class VideoDataSet(data.Dataset):  # thumos
                     while sampling_rate * k < int_length:
                         sampling_frames_list.append(math.floor(sampling_rate * k + start))
                         k += 1
-            # make mask to select the rows
-            
+                        
+            # Select the rows from the sampling_frames_list
+                # load in the features
             if 'val' in video_name:
                 feature_h5s = [
                     self.flow_val[video_name],
@@ -304,6 +311,7 @@ class VideoDataSet(data.Dataset):  # thumos
                     self.rgb_test[video_name]
                 ]
             
+            # select the rows and then average it -> stack it up
             for i in range(total_frames):
                 if i == 0:
                     end = i
@@ -325,10 +333,12 @@ class VideoDataSet(data.Dataset):  # thumos
                 else :
                     pass
             
+            # make it as concatenated feature_h5s like original code
             feature_h5s = [
                 flow_stack,
                 rgb_stack
             ]
+    # update END -----------------------------------------
             num_snippet = min([h5.shape[0] for h5 in feature_h5s]) # so, 1018 is the num_snippet ? looked like it was shape[1] the snippet from paper
             
             df_data = np.concatenate([h5[:num_snippet, :] # Yes, it's the number of snippets, and as we can see in the paper, 1018 * 5 is the original frame amounts
