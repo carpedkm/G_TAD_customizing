@@ -123,7 +123,7 @@ class VideoDataSet(data.Dataset):  # thumos
             else:
                 diff = reg - prev_reg
                 if diff <= complementary_count * 4: # 만약 특정 구간에서 인터벌이 120(0, 120)인 상태에서 6개를 샘플링해야 하는 상황일 때, 120을 top_transition_sites에서 삭제하게 된다.
-                        list.remove(reg)
+                        top_transition_sites.remove(reg)
                         break
                 else :
                     prev_reg = reg
@@ -135,6 +135,7 @@ class VideoDataSet(data.Dataset):  # thumos
         per_interval_count_list_ = [per_interval_count_ for _ in range(intervals_count_)]
         complementary_count_ = num_video_frames_ - (per_interval_count_ * intervals_count_)
         return intervals_count_, per_interval_count_, complementary_count_, per_interval_count_list_
+    
     def _length_calculate(self, top_transition_list):
         tmp = []
         for cnt, i in enumerate(top_transition_list):
@@ -146,6 +147,7 @@ class VideoDataSet(data.Dataset):  # thumos
                 interval = end - start
                 tmp.append(interval)
         return tmp
+    
     def _get_train_label(self, index):
         # change the measurement from second to percentage
         # gt_bbox = []
@@ -250,18 +252,6 @@ class VideoDataSet(data.Dataset):  # thumos
                 gt_xmins = anno_df_video.startFrame.values[:] # Get the start frame values from pandas df
                 gt_xmaxs = anno_df_video.endFrame.values[:] # Get the end frame values from pandas df
             # FIX FROM HERE
-            
-            # if 'val' in video_name:
-            #     feature_h5s = [
-            #         self.flow_val[video_name][::self.skip_videoframes,...],
-            #         self.rgb_val[video_name][::self.skip_videoframes,...]
-            #     ]
-            # elif 'test' in video_name:
-            #     feature_h5s = [
-            #         self.flow_test[video_name][::self.skip_videoframes,...],
-            #         self.rgb_test[video_name][::self.skip_videoframes,...]
-            #     ]
-            
             # UPDATED CODE
             intervals_count = len(top_transition_sites) - 1
             per_interval_count = math.floor(num_videoframes / intervals_count) # per interval, there should be sampled in this amount
@@ -301,8 +291,44 @@ class VideoDataSet(data.Dataset):  # thumos
                     while sampling_rate * k < int_length:
                         sampling_frames_list.append(math.floor(sampling_rate * k + start))
                         k += 1
+            # make mask to select the rows
             
+            if 'val' in video_name:
+                feature_h5s = [
+                    self.flow_val[video_name],
+                    self.rgb_val[video_name]
+                ]
+            elif 'test' in video_name:
+                feature_h5s = [
+                    self.flow_test[video_name],
+                    self.rgb_test[video_name]
+                ]
             
+            for i in range(total_frames):
+                if i == 0:
+                    end = i
+                elif i == sampling_frames_list[1]:
+                    start = end
+                    end = i
+                    flow_stack = np.average(feature_h5s[0][start:end, :], axis=0)
+                    rgb_stack  = np.average(feature_h5s[1][start:end, :], axis=0)
+                elif i in sampling_frames_list:
+                    start = end
+                    end = i
+                    flow_stack = np.vstack((flow_stack, np.average(feature_h5s[0][start:end, :], axis=0)))
+                    rgb_stack = np.vstack((rgb_stack, np.average(feature_h5s[1][start:end, :], axis=0)))
+                elif i == total_frames - 1:
+                    start = end
+                    end = total_frames - 1
+                    flow_stack = np.vstack((flow_stack, np.average(feature_h5s[0][start:end, :], axis=0)))
+                    rgb_stack = np.vstack((rgb_stack, np.average(feature_h5s[1][start:end, :], axis=0)))
+                else :
+                    pass
+            
+            feature_h5s = [
+                flow_stack,
+                rgb_stack
+            ]
             num_snippet = min([h5.shape[0] for h5 in feature_h5s]) # so, 1018 is the num_snippet ? looked like it was shape[1] the snippet from paper
             
             df_data = np.concatenate([h5[:num_snippet, :] # Yes, it's the number of snippets, and as we can see in the paper, 1018 * 5 is the original frame amounts

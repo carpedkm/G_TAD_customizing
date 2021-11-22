@@ -187,7 +187,7 @@ def remove_short_transition(transition_sites,thresh=120):
     transition_sites = sorted(transition_sites)
     return transition_sites
 
-anno_df_valid = pd.read_csv(valid_path)
+anno_df_valid = pd.read_csv(test_path)
 
 video_name_list = sorted(list(set(anno_df_valid.video.values[:])))
 len(video_name_list)
@@ -197,14 +197,17 @@ flow_val_ft = h5py.File(valid_flow, 'r')
 rgb_val_ft = h5py.File(valid_rgb, 'r')
 # vid_sim = []
 
+flow_test_ft = h5py.File(test_flow, 'r')
+rgb_test_ft = h5py.File(test_rgb, 'r')
+
 clustering_trials = 6
 transition_boundary_info = {}
 
 for cnt, i in tqdm(enumerate(video_name_list)):
     print('\nvideoname >>> ', i, 'VIDEO accumulated count >>> ', cnt)
     # get feature for each video
-    tmp = np.array(flow_val_ft[i])
-    tmp2 = np.array(rgb_val_ft[i])
+    tmp = np.array(flow_test_ft[i])
+    tmp2 = np.array(rgb_test_ft[i])
     mat = np.concatenate([tmp, tmp2], axis=1)
     
     print(tmp.shape, tmp2.shape)
@@ -257,7 +260,7 @@ for cnt, i in tqdm(enumerate(video_name_list)):
     # if cnt > 1:
     #     break
     
-with open('./temporal_info.json', 'w', encoding='utf-8') as f:
+with open('./temporal_info_test.json', 'w', encoding='utf-8') as f:
     json.dump(transition_boundary_info, f)
 print('JSON file saved')
     
