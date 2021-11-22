@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
 import numpy as np
+from numpy.testing._private.utils import break_cycles
 import pandas as pd
 import json, pickle
 import torch.utils.data as data
 import torch
 import h5py
+import math
 
 def ioa_with_anchors(anchors_min, anchors_max, box_min, box_max):
     # calculate the overlap proportion between the anchor and all bbox for supervise signal,
@@ -207,24 +209,81 @@ class VideoDataSet(data.Dataset):  # thumos
         for num_video, video_name in enumerate(video_name_list):
             print('Getting video %d / %d' % (num_video, len(video_name_list)), flush=True)
             anno_df_video = anno_df[anno_df.video == video_name] # for the each video sequence (same video) -> they are grouped as one set, in df
+            temporal_set = self.temporal_set[video_name]
+            
+            top_transition_sites = temporal_set['top_transition_sites']
+            total_frames = temporal_set['frames']
+            
             if self.mode == 'train':
                 gt_xmins = anno_df_video.startFrame.values[:] # Get the start frame values from pandas df
                 gt_xmaxs = anno_df_video.endFrame.values[:] # Get the end frame values from pandas df
-
-            if 'val' in video_name:
-                feature_h5s = [
-                    self.flow_val[video_name][::self.skip_videoframes,...],
-                    self.rgb_val[video_name][::self.skip_videoframes,...]
-                ]
-            elif 'test' in video_name:
-                feature_h5s = [
-                    self.flow_test[video_name][::self.skip_videoframes,...],
-                    self.rgb_test[video_name][::self.skip_videoframes,...]
-                ]
+            # FIX FROM HERE
+            
+            # if 'val' in video_name:
+            #     feature_h5s = [
+            #         self.flow_val[video_name][::self.skip_videoframes,...],
+            #         self.rgb_val[video_name][::self.skip_videoframes,...]
+            #     ]
+            # elif 'test' in video_name:
+            #     feature_h5s = [
+            #         self.flow_test[video_name][::self.skip_videoframes,...],
+            #         self.rgb_test[video_name][::self.skip_videoframes,...]
+            #     ]
+            
+            # UPDATED CODE
+            intervals_count = len(top_transition_sites) - 1
+            per_interval_count = math.floor(num_videoframes / intervals_count) # per interval, there should be sampled in this amount
+            complementary_count = num_videoframes - (per_interval_count * intervals_count) # use this amount to add up the sampling count to the top "complementary_count" numbers
+            
+            def update_transition_sites(top_transition_sites, complementary_count):
+                for cnt, reg in enumerate(top_transition_sites):
+                    if cnt == 0:
+                        prev_reg = reg
+                        continue
+                    else:
+                        diff = reg - prev_reg
+                        if diff <= complementary_count * 4: # 만약 특정 구간에서 인터벌이 120(0, 120)인 상태에서 6개를 샘플링해야 하는 상황일 때, 120을 top_transition_sites에서 삭제하게 된다.
+                                list.remove(reg)
+                                break
+                        else :
+                            prev_reg = reg
+                return top_transition_sites
+            
+            def update_intervals(num_video_frames_, top_transition_sites_):
+                intervals_count_= len(top_transition_sites_) - 1
+                per_interval_count_ = math.floor(num_video_frames_ / intervals_count_)
+                complementary_count_ = num_video_frames_ - (per_interval_count_ * intervals_count_)
+                return intervals_count_, per_interval_count_, complementary_count_
+             
+            flag = 0
+            while flag != 1:
+                old_top = top_transition_sites
+                top_transition_sites = update_transition_sites(top_transition_sites, complementary_count)
+                intervals_count, per_interval_count, complementary_count = update_intervals(num_videoframes, top_transition_sites)
+                if old_top == top_transition_sites:
+                    flag = 1
+            
+            
+            # Integrate and average the feature
+            sampling_frames_list = []
+            for cnt, i in enumerate(top_transition_sites):
+                if cnt == 0:
+                    end = i
+                else:
+                    start = end
+                    end = i
+                    int_length = end - start# interval length
+                    k = 0
+                    sampling_rate = float(int_length) / float(per_interval_count)
+                    while sampling_rate * k < int_length:
+                        sampling_frames_list.append(math.floor(sampling_rate * k + start))
+                        k += 1
+                
             num_snippet = min([h5.shape[0] for h5 in feature_h5s]) # so, 1018 is the num_snippet ? looked like it was shape[1] the snippet from paper
+            
             df_data = np.concatenate([h5[:num_snippet, :] # Yes, it's the number of snippets, and as we can see in the paper, 1018 * 5 is the original frame amounts
                                       for h5 in feature_h5s], # It's because, the number is given with downsampled TSN encoded.
-                                     axis=1) # concatenate, for example, 1018 by 1024 two of them -> 1018 by 2048, so the feature dim is concatenated.
+                                    axis=1) # concatenate, for example, 1018 by 1024 two of them -> 1018 by 2048, so the feature dim is concatenated.
 
             # df_snippet = [start_snippet + skip_videoframes * i for i in range(num_snippet)] 
             df_snippet = [skip_videoframes * i for i in range(num_snippet)] # skip video frames how does it work?
