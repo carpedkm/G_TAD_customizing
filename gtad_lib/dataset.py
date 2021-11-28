@@ -88,7 +88,7 @@ class VideoDataSet(data.Dataset):  # thumos
     def _get_video_data(self, data, index):
         return data['video_data'][index]
 
-
+# check
     def __getitem__(self, index):
         video_data = self._get_video_data(self.data, index) # get one from 2793 // get data stored from _get_data one by one through index
         video_data = torch.tensor(video_data.transpose()) # by transposing, make it feature_dim by length (window size)
