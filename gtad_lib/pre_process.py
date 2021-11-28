@@ -206,8 +206,8 @@ transition_boundary_info = {}
 for cnt, i in tqdm(enumerate(video_name_list)):
     print('\nvideoname >>> ', i, 'VIDEO accumulated count >>> ', cnt)
     # get feature for each video
-    tmp = np.array(flow_test_ft[i])
-    tmp2 = np.array(rgb_test_ft[i])
+    tmp = np.array(flow_val_ft[i])
+    tmp2 = np.array(rgb_val_ft[i])
     mat = np.concatenate([tmp, tmp2], axis=1)
     
     print(tmp.shape, tmp2.shape)
@@ -260,7 +260,7 @@ for cnt, i in tqdm(enumerate(video_name_list)):
     # if cnt > 1:
     #     break
     
-with open('./temporal_info_test.json', 'w', encoding='utf-8') as f:
+with open('./temporal_info_val.json', 'w', encoding='utf-8') as f:
     json.dump(transition_boundary_info, f)
 print('JSON file saved')
     

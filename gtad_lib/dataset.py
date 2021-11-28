@@ -41,8 +41,8 @@ def load_json(file):
 
 class VideoDataSet(data.Dataset):  # thumos
     def __init__(self, opt, subset="train", mode="train"):
-        self.temporal_scale = opt["temporal_scale"]  # 128
-        self.temporal_gap = 1. / self.temporal_scale # 1/128
+        self.temporal_scale = opt["temporal_scale"]  # 256
+        self.temporal_gap = 1. / self.temporal_scale # 1/256
         self.subset = subset
         self.mode = mode
         self.feature_path = opt["feature_path"]
@@ -100,15 +100,15 @@ class VideoDataSet(data.Dataset):  # thumos
 
     def _get_match_map(self):
         match_map = []
-        for idx in range(self.num_videoframes):
+        for idx in range(self.num_videoframes): # 256 (temporal_scale in opts.py)
             tmp_match_window = []
-            xmin = self.temporal_gap * idx
+            xmin = self.temporal_gap * idx # 1/256 * idx ??
             for jdx in range(1, self.max_duration + 1): # For THUMOS 14, it's 1 to 64 (max_duration is 64)
                 xmax = xmin + self.temporal_gap * jdx
                 tmp_match_window.append([xmin, xmax])  # [0,0.01], [0,0.02], ... 64 x 2
-            match_map.append(tmp_match_window)  # 128 x 64 x 2
-        match_map = np.array(match_map)  # 128 x 64 x 2
-        match_map = np.transpose(match_map, [1, 0, 2])  # [0,1] [1,2] [2,3].....[99,100], 64 x 128 x 2
+            match_map.append(tmp_match_window)  # 256 x 64 x 2
+        match_map = np.array(match_map)  # 256 x 64 x 2
+        match_map = np.transpose(match_map, [1, 0, 2])  # [0,1] [1,2] [2,3].....[99,100], 64 x 256 x 2
         match_map = np.reshape(match_map, [-1, 2])  # [0,2] [1,3] [2,4].....[99,101]   # (duration x start) x 2
         self.match_map = match_map  # duration is same in row, start is same in col
         self.anchor_xmin = [self.temporal_gap * (i-0.5) for i in range(self.temporal_scale)]
@@ -157,8 +157,8 @@ class VideoDataSet(data.Dataset):  # thumos
         # gt_bbox = []
         gt_iou_map = []
         gt_bbox = self.data['gt_bbox'][index]
-        anchor_xmin = self.data['anchor_xmins'][index]
-        anchor_xmax = self.data['anchor_xmaxs'][index]
+        anchor_xmin = self.data['anchor_xmins'][index] # from _get_data
+        anchor_xmax = self.data['anchor_xmaxs'][index] # from _get_data
         offset = int(min(anchor_xmin))
         for j in range(len(gt_bbox)):
             # tmp_info = video_labels[j]
@@ -261,42 +261,46 @@ class VideoDataSet(data.Dataset):  # thumos
             per_interval_count = math.floor(num_videoframes / intervals_count) # per interval, there should be sampled in this amount
             complementary_count = num_videoframes - (per_interval_count * intervals_count) # use this amount to add up the sampling count to the top "complementary_count" numbers
             
-            flag = 0
-            while flag != 1: # update the transition sites -> for ex) if there exists 6 interval count for the interval length 20, then you shouldn't pick it up, rather delete the transition -> update
-                old_top = top_transition_sites # 기존 transition site list
-                top_transition_sites = self._update_transition_sites(top_transition_sites, per_interval_count) # update the transition site (delete the non-necessary element)
-                intervals_count, per_interval_count, complementary_count, per_interval_count_list = self._update_intervals(num_videoframes, top_transition_sites) # recalculte the intervals count, per_interval_count, complementary_count
-                if old_top == top_transition_sites: # If there's no more changes
-                    flag = 1 # set the flag 1, and stop it
-            
-            diff_in_transitions = self._length_calculate(top_transition_sites) # calculate the length of each intervals
-            sorted_transitions = sorted(diff_in_transitions, reverse=True) # sort it
-            idx_list_transitions = []
-            
-            for i in diff_in_transitions:
-                idx_list_transitions.append(sorted_transitions.index(i)) # put the index inside
-            
-            for cnt, i in enumerate(idx_list_transitions): # since it's not 256 yet, add the complementary to the k(comp count) largest interval values
-                if i < complementary_count:
-                    per_interval_count_list[cnt] += 1
+            if len(top_transition_sites) == 2: # for really short video input, with the similarity matrix that shows no transition sites
+                flag = 1
+            else: # otherwise, we should calculate it as,
+                flag = 0
+                
+                while flag != 1: # update the transition sites -> for ex) if there exists 6 interval count for the interval length 20, then you shouldn't pick it up, rather delete the transition -> update
+                    old_top = top_transition_sites # 기존 transition site list
+                    top_transition_sites = self._update_transition_sites(top_transition_sites, per_interval_count) # update the transition site (delete the non-necessary element)
+                    intervals_count, per_interval_count, complementary_count, per_interval_count_list = self._update_intervals(num_videoframes, top_transition_sites) # recalculte the intervals count, per_interval_count, complementary_count
+                    if old_top == top_transition_sites: # If there's no more changes
+                        flag = 1 # set the flag 1, and stop it
+                
+                diff_in_transitions = self._length_calculate(top_transition_sites) # calculate the length of each intervals
+                sorted_transitions = sorted(diff_in_transitions, reverse=True) # sort it
+                idx_list_transitions = []
+                
+                for i in diff_in_transitions:
+                    idx_list_transitions.append(sorted_transitions.index(i)) # put the index inside
+                
+                for cnt, i in enumerate(idx_list_transitions): # since it's not 256 yet, add the complementary to the k(comp count) largest interval values
+                    if i < complementary_count:
+                        per_interval_count_list[cnt] += 1
             
                 
-        # Integrate and average the feature -----
-            # select the frames to sample -> use the transition sites 
-            # -> and pick it by using the updated per_interval_count_list
-            sampling_frames_list = []
-            for cnt, i in enumerate(top_transition_sites):
-                if cnt == 0:
-                    end = i
-                else:
-                    start = end
-                    end = i
-                    int_length = end - start# interval length
-                    k = 0
-                    sampling_rate = float(int_length) / float(per_interval_count_list[cnt - 1])
-                    while sampling_rate * k < int_length:
-                        sampling_frames_list.append(math.floor(sampling_rate * k + start))
-                        k += 1
+            # Integrate and average the feature -----
+                # select the frames to sample -> use the transition sites 
+                # -> and pick it by using the updated per_interval_count_list
+                sampling_frames_list = []
+                for cnt, i in enumerate(top_transition_sites):
+                    if cnt == 0:
+                        end = i
+                    else:
+                        start = end
+                        end = i
+                        int_length = end - start# interval length
+                        k = 0
+                        sampling_rate = float(int_length) / float(per_interval_count_list[cnt - 1])
+                        while sampling_rate * k < int_length:
+                            sampling_frames_list.append(math.floor(sampling_rate * k + start))
+                            k += 1
                         
             # Select the rows from the sampling_frames_list
                 # load in the features
@@ -311,33 +315,51 @@ class VideoDataSet(data.Dataset):  # thumos
                     self.rgb_test[video_name]
                 ]
             
+         
             # select the rows and then average it -> stack it up
-            for i in range(total_frames):
-                if i == 0:
-                    end = i
-                elif i == sampling_frames_list[1]:
-                    start = end
-                    end = i
-                    flow_stack = np.average(feature_h5s[0][start:end, :], axis=0)
-                    rgb_stack  = np.average(feature_h5s[1][start:end, :], axis=0)
-                elif i in sampling_frames_list:
-                    start = end
-                    end = i
-                    flow_stack = np.vstack((flow_stack, np.average(feature_h5s[0][start:end, :], axis=0)))
-                    rgb_stack = np.vstack((rgb_stack, np.average(feature_h5s[1][start:end, :], axis=0)))
-                elif i == total_frames - 1:
-                    start = end
-                    end = total_frames - 1
-                    flow_stack = np.vstack((flow_stack, np.average(feature_h5s[0][start:end, :], axis=0)))
-                    rgb_stack = np.vstack((rgb_stack, np.average(feature_h5s[1][start:end, :], axis=0)))
-                else :
-                    pass
-            
-            # make it as concatenated feature_h5s like original code
-            feature_h5s = [
-                flow_stack,
-                rgb_stack
-            ]
+            if len(top_transition_sites) == 2: # impossible to stack up and average it -> pick up the features with the desired amount (by linear interpolation)
+                # use linear interpolation to fix this case
+                gap = float(top_transition_sites[1] - top_transition_sites[0]) / float(num_videoframes)
+                for num in range(num_videoframes):
+                    if num == 0:
+                        flow_stack = feature_h5s[0][0, :]
+                        rgb_stack = feature_h5s[1][0, :]
+                    else :
+                        loc = gap * num
+                        floor_ = math.floor(loc)
+                        ceil_ = math.ceil(loc)
+                        lambda_floor = loc - floor_
+                        lambda_ceil = ceil_ - loc # equiv to 1 - lambda_floor
+                        flow_stack = np.vstack((flow_stack, feature_h5s[0][floor_, :] * lambda_floor + feature_h5s[0][ceil_, :] * lambda_ceil))
+                        rgb_stack = np.vstack((rgb_stack, feature_h5s[1][floor_, :] * lambda_floor + feature_h5s[1][ceil_, :] * lambda_ceil))
+                    
+            else:
+                for i in range(total_frames):
+                    if i == 0:
+                        end = i
+                    elif i == sampling_frames_list[1]:
+                        start = end
+                        end = i
+                        flow_stack = np.average(feature_h5s[0][start:end, :], axis=0)
+                        rgb_stack  = np.average(feature_h5s[1][start:end, :], axis=0)
+                    elif i in sampling_frames_list:
+                        start = end
+                        end = i
+                        flow_stack = np.vstack((flow_stack, np.average(feature_h5s[0][start:end, :], axis=0)))
+                        rgb_stack = np.vstack((rgb_stack, np.average(feature_h5s[1][start:end, :], axis=0)))
+                    elif i == total_frames - 1:
+                        start = end
+                        end = total_frames - 1
+                        flow_stack = np.vstack((flow_stack, np.average(feature_h5s[0][start:end, :], axis=0)))
+                        rgb_stack = np.vstack((rgb_stack, np.average(feature_h5s[1][start:end, :], axis=0)))
+                    else :
+                        pass
+                
+                # make it as concatenated feature_h5s like original code
+                feature_h5s = [
+                    flow_stack,
+                    rgb_stack
+                ]
     # update END -----------------------------------------
             num_snippet = min([h5.shape[0] for h5 in feature_h5s]) # so, 1018 is the num_snippet ? looked like it was shape[1] the snippet from paper
             
@@ -396,7 +418,7 @@ class VideoDataSet(data.Dataset):  # thumos
         print("List of videos: ", len(set(list_videos)), flush=True)
         self.data = {
             'video_names': list_videos,
-            'indices': list_indices
+            'indices': list_indices # tmp_snippets
         }
         if self.mode == 'train':
             self.data.update({
