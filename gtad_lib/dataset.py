@@ -16,7 +16,7 @@ def ioa_with_anchors(anchors_min, anchors_max, box_min, box_max):
     int_xmin = np.maximum(anchors_min, box_min)
     int_xmax = np.minimum(anchors_max, box_max)
     inter_len = np.maximum(int_xmax - int_xmin, 0.)
-    scores = np.divide(inter_len, len_anchors)
+    scores = np.divide(inter_len, len_anchors) # 겹치는게 존재하기만 하면 됨
     return scores
 
 
@@ -94,7 +94,7 @@ class VideoDataSet(data.Dataset):  # thumos
         video_data = torch.tensor(video_data.transpose()) # by transposing, make it feature_dim by length (window size)
         if self.mode == "train":
             match_score_start, match_score_end, confidence_score = self._get_train_label(index) # get the label data : gt bbox for that matching windows, anchor_xmins, anchor_xmaxs : (corresponding anchors that's multiplied by 5 to compare with gt in frames)
-            return video_data, confidence_score, match_score_start, match_score_end
+            return video_data, confidence_score, match_score_start, match_score_end # confidence score : 64 by 256
         else:
             return index, video_data # when inferencing -> just input the video_data (2048 by 256)
 
@@ -103,7 +103,7 @@ class VideoDataSet(data.Dataset):  # thumos
         for idx in range(self.num_videoframes):
             tmp_match_window = []
             xmin = self.temporal_gap * idx
-            for jdx in range(1, self.max_duration + 1):
+            for jdx in range(1, self.max_duration + 1): # For THUMOS 14, it's 1 to 64 (max_duration is 64)
                 xmax = xmin + self.temporal_gap * jdx
                 tmp_match_window.append([xmin, xmax])  # [0,0.01], [0,0.02], ... 64 x 2
             match_map.append(tmp_match_window)  # 128 x 64 x 2
@@ -373,10 +373,12 @@ class VideoDataSet(data.Dataset):  # thumos
                     for idx in range(len(gt_xmins)): # gt_xmins , gt_xmaxs : use original frame (not the 5 divided ones): in order to compare, tmp_anchor -> they should be consisted of original frames also. 
                         tmp_ioa = ioa_with_anchors(gt_xmins[idx], gt_xmaxs[idx],
                                                    tmp_anchor_xmins[0],
-                                                   tmp_anchor_xmaxs[-1])
+                                                   tmp_anchor_xmaxs[-1]) # e.g. xmins, xmaxs of GT -> compare with the minimum of tmp anchor and maximum of tmp anchor 
+                                                                         #-> get IoU score over anchor 
+                                                                         #-> return the score
                         tmp_ioa_list.append(tmp_ioa) # check if the window contains the given ground truth ts and te
                         if tmp_ioa > 0: # if there's contained ones -> append all of them to tmp_gt_bbox
-                            tmp_gt_bbox.append([gt_xmins[idx], gt_xmaxs[idx]]) # meaning, (I think), that we'll use this gt set?
+                            tmp_gt_bbox.append([gt_xmins[idx], gt_xmaxs[idx]]) # meaning, that in this window, this GT is inside
 
                     if len(tmp_gt_bbox) > 0 and max(tmp_ioa_list) > 0.9: # in that video seq, if there's case that includes the gt for the window, and if there exists ioa larger than 0.9
                         list_gt_bbox.append(tmp_gt_bbox) # add that tmp_gt_bbox to list_gt_bbox (adding that gt set that includes ioa larger than 0.9 to list_gt_bbox) 
