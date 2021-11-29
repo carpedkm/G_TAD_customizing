@@ -164,6 +164,8 @@ class VideoDataSet(data.Dataset):  # thumos
             # tmp_info = video_labels[j]
             tmp_start = max(min(1, (gt_bbox[j][0]-offset)*self.temporal_gap/self.skip_videoframes), 0) # to use it with the given feature data, it's kind of shifting and scaling
             tmp_end =   max(min(1, (gt_bbox[j][1]-offset)*self.temporal_gap/self.skip_videoframes), 0)
+            if tmp_end > 1:
+                print('tmp end larger than 1', tmp_end)
             # gt_bbox.append([tmp_start, tmp_end])
             tmp_gt_iou_map = iou_with_anchors(
                 self.match_map[:, 0], self.match_map[:, 1], tmp_start, tmp_end)
@@ -185,7 +187,7 @@ class VideoDataSet(data.Dataset):  # thumos
         gt_start_bboxs = np.stack((gt_xmins - gt_len_small / 2, gt_xmins + gt_len_small / 2), axis=1)
         gt_end_bboxs = np.stack((gt_xmaxs - gt_len_small / 2, gt_xmaxs + gt_len_small / 2), axis=1)
 
-        # calculate the ioa for all timestamp
+        # calculate the ioa for all timestamp - here, use the original frame counts // not the percentages
         match_score_start = []
         for jdx in range(len(anchor_xmin)):
             match_score_start.append(np.max(
@@ -193,7 +195,7 @@ class VideoDataSet(data.Dataset):  # thumos
         match_score_end = []
         for jdx in range(len(anchor_xmin)):
             match_score_end.append(np.max(
-                ioa_with_anchors(anchor_xmin[jdx], anchor_xmax[jdx], gt_end_bboxs[:, 0], gt_end_bboxs[:, 1])))
+                ioa_with_anchors(anchor_xmin[jdx], anchor_xmax[jdx], gt_end_bboxs[:, 0], gt_end_bboxs[:, 1]))) # rerturns 각각의 GT에 대해 
         match_score_start = torch.Tensor(match_score_start)
         match_score_end = torch.Tensor(match_score_end)
 
